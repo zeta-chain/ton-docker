@@ -8,5 +8,13 @@ build: ## Build image
 	scripts/download-jar.sh
 	docker buildx build --platform linux/amd64 -t ton-local -f Dockerfile .
 
+build-no-cache: # Build w/o cache
+	@echo "Building ton docker image"
+	scripts/download-jar.sh
+	docker buildx build --no-cache --platform linux/amd64 -t ton-local -f Dockerfile .
+
 test-sidecar: ## Test sidecar
 	go test ./sidecar/...
+
+test-image: ## Test image
+	./scripts/test.sh ton-local:latest
