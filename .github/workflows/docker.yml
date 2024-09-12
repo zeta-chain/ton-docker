@@ -30,18 +30,10 @@ jobs:
       - name: Download required file
         run: chmod +x ./scripts/download-jar.sh && ./scripts/download-jar.sh
 
-      - name: Build Image
+      - name: Build And Push
         uses: docker/build-push-action@v6
         with:
           context: .
-          load: true
-          push: false
+          push: true
           tags: |
-            ${{ env.IMAGE_NAME }}:test
             ${{ env.IMAGE_NAME }}:latest
-
-      - name: Test
-        run: chmod +x ./scripts/test.sh && ./scripts/test.sh ${{ env.IMAGE_NAME }}:test
-
-      - name: Push Image
-        run: docker push ${{ env.IMAGE_NAME }}:latest

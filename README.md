@@ -2,6 +2,8 @@
 
 This docker image represents a fully working TON node with 1 validator and a faucet wallet.
 
+> Note: use for LOCAL development only.
+
 ## How it works
 
 - It uses [my-local-ton](https://github.com/neodix42/MyLocalTon) project without GUI.

@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 )
 
 const (
@@ -84,6 +85,10 @@ func statusHandler(w http.ResponseWriter, _ *http.Request) error {
 		return fmt.Errorf("lite client config %q not found: %w", liteClientConfigPath, err)
 	}
 
+	if err := checkLiteClient(); err != nil {
+		return fmt.Errorf("lite client check failed: %w", err)
+	}
+
 	faucet, err := extractFaucetFromSettings(settingsPath)
 	if err != nil {
 		return err
@@ -103,6 +108,7 @@ func statusHandler(w http.ResponseWriter, _ *http.Request) error {
 	}
 
 	jsonResponse(w, http.StatusOK, map[string]string{"status": "OK"})
+
 	return nil
 }
 
@@ -168,4 +174,14 @@ func ip2int(ip net.IP) uint32 {
 
 func uint32ToBytes(n uint32) []byte {
 	return []byte(fmt.Sprintf("%d", n))
+}
+
+func checkLiteClient() error {
+	const (
+		bin        = basePath + "/genesis/bin/lite-client"
+		config     = basePath + "/genesis/db/my-ton-global.config.json"
+		timeoutSec = "2"
+	)
+
+	return exec.Command(bin, "--timeout", timeoutSec, "--global-config", config, "-c", "last").Run()
 }

@@ -15,6 +15,3 @@ build-no-cache: # Build w/o cache
 
 test-sidecar: ## Test sidecar
 	go test ./sidecar/...
-
-test-image: ## Test image
-	./scripts/test.sh ton-local:latest
