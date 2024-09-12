@@ -14,7 +14,7 @@ RUN apt-get update \
         openjdk-21-jre-headless curl jq vim lsb-release \
     && rm -rf /var/lib/apt/lists/*
 
-COPY scripts/my-local-ton.jar $WORKDIR/
+COPY scripts/download-jar.sh $WORKDIR/
 COPY scripts/entrypoint.sh $WORKDIR/
 COPY scripts/genesis.sh $WORKDIR/
 
@@ -22,7 +22,9 @@ COPY --from=go-builder /opt/sidecar $WORKDIR/
 
 WORKDIR $WORKDIR
 
-# Ensure whether the build works
+RUN ./download-jar.sh
+
+# Ensure whether the build is working
 RUN chmod +x entrypoint.sh \
     && chmod +x sidecar \
     && chmod +x genesis.sh \

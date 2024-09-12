@@ -2,4 +2,3 @@
 .git
 
 sidecar/main_test.go
-scripts/download-jar.sh
