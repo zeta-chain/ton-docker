@@ -3,13 +3,23 @@ on:
   # Manual trigger
   workflow_dispatch:
 
+  push:
+    tags:
+      - v*
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     steps:
       - name: Set image name
         run: |
-          echo "IMAGE_NAME=ghcr.io/${{ github.repository }}" >> $GITHUB_ENV
+          # Default tag as commit SHA
+          VERSION=${GITHUB_SHA::7}
+          # Use tag name if it's a tag push
+          if [ "$GITHUB_EVENT_NAME" == "push" ] && [ "$GITHUB_REF_TYPE" == "tag" ]; then
+            VERSION=${GITHUB_REF_NAME}
+          fi
+          echo "IMAGE_NAME=ghcr.io/${{ github.repository }}:${VERSION}" >> $GITHUB_ENV
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,13 +37,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Download required file
-        run: chmod +x ./scripts/download-jar.sh && ./scripts/download-jar.sh
-
       - name: Build And Push
         uses: docker/build-push-action@v6
         with:
+          platforms: linux/amd64,linux/arm64
           context: .
           push: true
-          tags: |
-            ${{ env.IMAGE_NAME }}:latest
+          tags: ${{ env.IMAGE_NAME }}
