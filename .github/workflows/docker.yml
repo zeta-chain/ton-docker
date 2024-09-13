@@ -40,7 +40,7 @@ jobs:
       - name: Build And Push
         uses: docker/build-push-action@v6
         with:
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64,linux/arm64,linux/arm64/v8
           context: .
           push: true
           tags: ${{ env.IMAGE_NAME }}
