@@ -2,7 +2,7 @@
 
 set -eo pipefail
 
-jar_version="v120"
+jar_version="v124"
 arch=$(uname -m)
 
 case $arch in
