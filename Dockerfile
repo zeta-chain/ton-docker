@@ -9,10 +9,14 @@ FROM ubuntu:24.04 AS ton-node
 ARG WORKDIR="/opt/my-local-ton"
 
 # Install dependencies && drop apt cache
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-        openjdk-21-jre-headless curl jq vim lsb-release libatomic1 \
-    && rm -rf /var/lib/apt/lists/*
+# (including ton-http-api)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    openjdk-21-jre-headless curl jq vim lsb-release libatomic1 \
+    python3 python3-pip python3-dev gcc && \
+    pip3 install --break-system-packages --user ton-http-api && \
+    apt-get remove -y python3-dev gcc && apt autoremove -y && \
+    rm -rf /var/lib/apt/lists/*
 
 COPY scripts/download-jar.sh $WORKDIR/
 COPY scripts/entrypoint.sh $WORKDIR/
@@ -38,5 +42,8 @@ EXPOSE 4443
 
 # Sidecar
 EXPOSE 8000
+
+# HTTP RPC API
+EXPOSE 8081
 
 ENTRYPOINT ["/opt/my-local-ton/entrypoint.sh"]
