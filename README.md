@@ -9,6 +9,7 @@ This docker image represents a fully working TON node with 1 validator and a fau
 - It uses [my-local-ton](https://github.com/neodix42/MyLocalTon) project without GUI.
   Port `4443` is used for [lite-client connection](https://docs.ton.org/participate/run-nodes/enable-liteserver-node).
 - It also has a convenient sidecar on port `8000` with some useful tools.
+- If `ENABLE_RPC=true`, then it spins up HTTP RPC on port `8081`
 - Please note that it might take **several minutes** to bootstrap the network.
 
 ## Sidecar
@@ -61,3 +62,6 @@ curl -s http://ton:8000/status | jq
   "status": "OK"
 }
 ```
+
+## RPC
+If enabled, https://github.com/toncenter/ton-http-api is used on port `8081`
