@@ -1,11 +1,6 @@
 #!/bin/bash
 
-# Check if RPC should be enabled
-JAVA_ARGS="with-validators-1 nogui debug"
-if [ "$ENABLE_RPC" = "true" ]; then
-    echo "RPC is enabled"
-    JAVA_ARGS="$JAVA_ARGS ton-http-api"
-fi
+JAVA_ARGS="with-validators-1 nogui ton-http-api"
 
 # Run JAR
 java -jar my-local-ton.jar $JAVA_ARGS &
