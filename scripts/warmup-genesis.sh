@@ -14,9 +14,11 @@ export NEXT_BLOCK_GENERATION_DELAY=1
 # Validator set is valid for 30 seconds
 export ORIGINAL_VALIDATOR_SET_VALID_FOR=30
 
+export LITESERVER_CONFIG=/var/ton-work/db/localhost.global.config.json
+export FAUCET_ADDRESS="0:1da77f0269bbbb76c862ea424b257df63bd1acb0d4eb681b68c9aadfbf553b93"
+
 echo "Starting genesis warmup. It should take 5 minutes approx."
 
-# Create a temporary file for logging
 LOG_FILE=$(mktemp)
 echo "Logging to: $LOG_FILE"
 
@@ -53,6 +55,11 @@ cleanup() {
     rm -f "$LOG_FILE"
 }
 
+query_lite_server() {
+    # t = timeout seconds; c = command
+	lite-client -C $LITESERVER_CONFIG -t 3 -c "$@"
+}
+
 # Set up signal handlers
 trap cleanup EXIT INT TERM
 
@@ -70,14 +77,39 @@ while true; do
         kill "$TAIL_PID" 2>/dev/null
         exit 1
     fi
-    
+
     if grep -q "$SUCCESS_MESSAGE" "$LOG_FILE" 2>/dev/null; then
         echo "Found '$SUCCESS_MESSAGE' in logs!"
         kill "$TAIL_PID" 2>/dev/null
         break
     fi
-    
+
     sleep 1
+done
+
+# Wait for faucet to be ready
+max_retries=20
+attempts=0
+
+while true; do
+    out=$(query_lite_server "getaccount $FAUCET_ADDRESS" 2>&1)
+    exit_code=$?
+    
+    if [ $exit_code -eq 0 ] && echo "$out" | grep -q "account_active"; then
+        echo "Faucet is ready!"
+        break
+    else
+        attempts=$((attempts + 1))
+        if [ $attempts -ge $max_retries ]; then
+            echo "ERROR: Faucet not ready after $max_retries retries"
+            exit 1
+        fi
+
+        echo "Faucet is not ready yet, retrying..."
+        echo "Output: $out"
+        sleep 2
+    fi
+
 done
 
 echo "Genesis warmup completed successfully!"
