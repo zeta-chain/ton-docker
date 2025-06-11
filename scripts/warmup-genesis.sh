@@ -1,8 +1,18 @@
 #!/bin/bash
 
+# This scripts runs during docker image build to populate the state
+
 export GENESIS="true"
 export NAME="genesis"
 export CUSTOM_PARAMETERS="--state-ttl 315360000 --archive-ttl 315360000"
+export ENABLE_FILE_HTTP_SERVER=false
+export EXTERNAL_IP=127.0.0.1
+
+# Generate 1 new block per second
+export NEXT_BLOCK_GENERATION_DELAY=1
+
+# Validator set is valid for 30 seconds
+export ORIGINAL_VALIDATOR_SET_VALID_FOR=30
 
 echo "Starting genesis warmup. It should take 5 minutes approx."
 
