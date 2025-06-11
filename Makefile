@@ -5,7 +5,6 @@ help: ## List of commands
 
 build: ## Build image
 	@echo "Building ton docker image"
-	scripts/download-jar.sh
 	docker buildx build -t ton-local -f Dockerfile .
 
 build-no-cache: # Build w/o cache

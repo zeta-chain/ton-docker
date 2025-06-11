@@ -2,26 +2,43 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"os/exec"
+	"time"
 )
 
-const (
-	port = ":8000"
-
-	basePath             = "/opt/my-local-ton/myLocalTon"
-	liteClientConfigPath = basePath + "/genesis/db/my-ton-local.config.json"
-	settingsPath         = basePath + "/settings.json"
-
-	faucetJSONKey = "faucetWalletSettings"
+var (
+	port                 = env("SIDECAR_PORT", "8000")
+	rpcPort              = env("TON_API_HTTP_PORT", "8081")
+	liteClientConfigPath = env("LITESERVER_CONFIG", "/var/ton-work/db/localhost.global.config.json")
+	liteClientBin        = env("LITECLIENT_BIN", "/usr/local/bin/lite-client")
 )
+
+// inherited from my-local-ton
+type faucet struct {
+	WorkChain        int32  `json:"workChain"`
+	WalletRawAddress string `json:"walletRawAddress"`
+	Mnemonic         string `json:"mnemonic"`
+	WalletVersion    string `json:"walletVersion"`
+	SubWalletId      int    `json:"subWalletId"`
+}
+
+// https://github.com/neodix42/mylocalton-docker?tab=readme-ov-file#pre-installed-wallets
+// Faucet wallet @ basechain (balance: 1,000,000 TON)
+var faucetBaseChain = faucet{
+	WorkChain:        0,
+	WalletRawAddress: "0:1da77f0269bbbb76c862ea424b257df63bd1acb0d4eb681b68c9aadfbf553b93",
+	Mnemonic:         "again tired walnut legal case simple gate deer huge version enable special metal collect hurdle merit between salmon elbow pattern initial receive total slender",
+	WalletVersion:    "V3R2",
+	SubWalletId:      42,
+}
 
 func main() {
 	http.HandleFunc("/faucet.json", errorWrapper(faucetHandler))
@@ -31,7 +48,7 @@ func main() {
 	log.Print("Starting sidecar on port ", port)
 
 	//nolint:gosec
-	if err := http.ListenAndServe(port, nil); err != nil {
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -46,12 +63,8 @@ func errorWrapper(handler func(w http.ResponseWriter, r *http.Request) error) ht
 
 // Handler for the /faucet.json route
 func faucetHandler(w http.ResponseWriter, _ *http.Request) error {
-	faucet, err := extractFaucetFromSettings(settingsPath)
-	if err != nil {
-		return err
-	}
+	jsonResponse(w, http.StatusOK, faucetBaseChain)
 
-	jsonResponse(w, http.StatusOK, faucet)
 	return nil
 }
 
@@ -79,60 +92,32 @@ func liteClientHandler(w http.ResponseWriter, _ *http.Request) error {
 	return nil
 }
 
+var resOK = map[string]string{
+	"status": "OK",
+}
+
 // Handler for the /status route
 func statusHandler(w http.ResponseWriter, _ *http.Request) error {
-	if _, err := os.Stat(liteClientConfigPath); err != nil {
-		return fmt.Errorf("lite client config %q not found: %w", liteClientConfigPath, err)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := checkLiteClient(ctx); err != nil {
+		return fmt.Errorf("lite server check failed: %w", err)
 	}
 
-	if err := checkLiteClient(); err != nil {
-		return fmt.Errorf("lite client check failed: %w", err)
+	if err := checkRPC(ctx); err != nil {
+		return fmt.Errorf("rpc check failed: %w", err)
 	}
 
-	faucet, err := extractFaucetFromSettings(settingsPath)
-	if err != nil {
-		return err
-	}
-
-	type faucetShape struct {
-		Created bool `json:"created"`
-	}
-
-	var fs faucetShape
-	if err = json.Unmarshal(faucet, &fs); err != nil {
-		return fmt.Errorf("failed to parse faucet settings: %w", err)
-	}
-
-	if !fs.Created {
-		return errors.New("faucet is not created yet")
-	}
-
-	jsonResponse(w, http.StatusOK, map[string]string{"status": "OK"})
+	jsonResponse(w, http.StatusOK, resOK)
 
 	return nil
 }
 
-func extractFaucetFromSettings(filePath string) (json.RawMessage, error) {
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("could not read faucet settings: %w", err)
-	}
-
-	var keyValue map[string]json.RawMessage
-	if err := json.Unmarshal(data, &keyValue); err != nil {
-		return nil, fmt.Errorf("failed to parse faucet settings: %w", err)
-	}
-
-	faucet, ok := keyValue[faucetJSONKey]
-	if !ok {
-		return nil, errors.New("faucet settings not found in JSON")
-	}
-
-	return faucet, nil
-}
-
 func errResponse(w http.ResponseWriter, status int, err error) {
-	jsonResponse(w, status, map[string]string{"error": err.Error()})
+	jsonResponse(w, status, map[string]string{
+		"error": err.Error(),
+	})
 }
 
 func jsonResponse(w http.ResponseWriter, status int, data any) {
@@ -169,6 +154,7 @@ func ip2int(ip net.IP) uint32 {
 	if len(ip) == 16 {
 		return binary.BigEndian.Uint32(ip[12:16])
 	}
+
 	return binary.BigEndian.Uint32(ip)
 }
 
@@ -176,12 +162,67 @@ func uint32ToBytes(n uint32) []byte {
 	return []byte(fmt.Sprintf("%d", n))
 }
 
-func checkLiteClient() error {
-	const (
-		bin        = basePath + "/genesis/bin/lite-client"
-		config     = basePath + "/genesis/db/my-ton-global.config.json"
-		timeoutSec = "2"
-	)
+func checkLiteClient(ctx context.Context) error {
+	const timeoutSec = "2"
 
-	return exec.Command(bin, "--timeout", timeoutSec, "--global-config", config, "-c", "last").Run()
+	args := []string{
+		"--timeout", timeoutSec,
+		"--global-config", liteClientConfigPath,
+		"-c", "last",
+	}
+
+	return exec.CommandContext(ctx, liteClientBin, args...).Run()
+}
+
+// https://toncenter.com/api/v2/#/
+func checkRPC(ctx context.Context) error {
+	url := fmt.Sprintf("http://0.0.0.0:%s/getMasterchainInfo", rpcPort)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to get masterchain info: %w", err)
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to get masterchain info: http code %d", resp.StatusCode)
+	}
+
+	type resShape struct {
+		Ok     bool `json:"ok"`
+		Result struct {
+			Last struct {
+				Seqno uint32 `json:"seqno"`
+			} `json:"last"`
+		} `json:"result"`
+	}
+
+	var res resShape
+
+	err = json.NewDecoder(resp.Body).Decode(&res)
+
+	switch {
+	case err != nil:
+		return fmt.Errorf("failed to decode response: %w", err)
+	case !res.Ok:
+		return fmt.Errorf("invalid response")
+	case res.Result.Last.Seqno == 0:
+		return fmt.Errorf("seqno is 0")
+	}
+
+	return nil
+}
+
+func env(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+
+	return fallback
 }
