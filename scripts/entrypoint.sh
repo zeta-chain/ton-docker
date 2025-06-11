@@ -1,10 +1,6 @@
 #!/bin/bash
 
-chmod +x /scripts/*.sh
-
 # Node/Genesis vars
-
-# Start node
 export GENESIS="true"
 export NAME="genesis"
 export CUSTOM_PARAMETERS="--state-ttl 315360000 --archive-ttl 315360000"
@@ -15,9 +11,8 @@ export EXTERNAL_IP=127.0.0.1
 export TON_API_HTTP_PORT=8081
 export LITESERVER_CONFIG=/var/ton-work/db/localhost.global.config.json
 export PARALLEL_REQUESTS_PER_LITESERVER=10
-export TON_API_WEBSERVERS_WORKERS=1
-export TON_API_GUNICORN_FLAGS="--workers=1"
 export TON_API_LOGS_LEVEL=INFO
+export CDLL_PATH=/usr/local/bin/libtonlibjson.so
 
 # RUN SIDECAR ================================================
 sidecar &
@@ -45,6 +40,7 @@ ton-http-api \
   --port $TON_API_HTTP_PORT \
   --liteserver-config $LITESERVER_CONFIG \
   --parallel-requests-per-liteserver $PARALLEL_REQUESTS_PER_LITESERVER \
+  --cdll-path $CDLL_PATH \
   --logs-level $TON_API_LOGS_LEVEL \
   --logs-jsonify &
 
